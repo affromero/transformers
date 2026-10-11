@@ -15,12 +15,14 @@ def check_torch_load_security():
 
     torch_version = Version(torch.__version__)
     patched_23 = (
-        str(torch_version) == "2.3.0+cu121.security1"
+        str(torch_version) in {"2.3.0+cu121.security1", "2.3.0+security.1"}
         and hasattr(torch.serialization, "safe_globals")
         and hasattr(torch.serialization, "get_safe_globals")
     )
-    if torch_version < Version("2.6.0") and not patched_23:
-        raise ValueError("Checkpoint loading requires patched Torch 2.3.0+cu121.security1 or Torch >=2.6")
+    if not patched_23 and (torch_version < Version("2.6.0") or torch_version.is_prerelease):
+        raise ValueError(
+            "Checkpoint loading requires patched Torch 2.3.0+cu121.security1, 2.3.0+security.1 or Torch >=2.6"
+        )
 
 
 def restricted_torch_load(*args, **kwargs):

@@ -142,19 +142,35 @@ def test_torch_loading_rejects_unsafe_override(tmp_path):
         restricted_torch_load(checkpoint, weights_only=False)
 
 
-@pytest.mark.parametrize("version", ["2.6.0.dev20241001", "2.6.0a0", "2.3.0+cu121"])
+@pytest.mark.parametrize(
+    "version",
+    ["2.6.0.dev20241001", "2.6.0a0", "2.7.0a0", "2.8.0.dev0", "2.3.0+cu121", "2.3.0+git1234567", "2.3.0+security.0"],
+)
 def test_checkpoint_loading_rejects_prereleases_and_unpatched_builds(monkeypatch, version):
     monkeypatch.setattr(torch, "__version__", version)
     with pytest.raises(ValueError, match="patched Torch"):
         check_torch_load_security()
 
 
-def test_checkpoint_loading_requires_restricted_apis_in_the_23_backport(monkeypatch):
-    monkeypatch.setattr(torch, "__version__", "2.3.0+cu121.security1")
+@pytest.mark.parametrize("version", ["2.3.0+cu121.security1", "2.3.0+security.1"])
+@pytest.mark.parametrize("api", ["safe_globals", "get_safe_globals"])
+def test_checkpoint_loading_requires_restricted_apis_in_the_23_backport(monkeypatch, version, api):
+    monkeypatch.setattr(torch, "__version__", version)
     check_torch_load_security()
-    monkeypatch.delattr(torch.serialization, "safe_globals")
+    monkeypatch.delattr(torch.serialization, api)
     with pytest.raises(ValueError, match="patched Torch"):
         check_torch_load_security()
+
+
+@pytest.mark.parametrize("version", ["2.3.0+cu121.security1", "2.3.0+security.1"])
+def test_maintained_builds_read_tensor_checkpoints_without_unrestricted_loading(tmp_path, monkeypatch, version):
+    monkeypatch.setattr(torch, "__version__", version)
+    checkpoint = tmp_path / "weights.pt"
+    expected = {"weight": torch.arange(6).reshape(2, 3), "label": "maintained"}
+    torch.save(expected, checkpoint)
+    actual = restricted_torch_load(checkpoint, map_location="cpu")
+    torch.testing.assert_close(actual["weight"], expected["weight"])
+    assert actual["label"] == expected["label"]
 
 
 def test_binary_model_checkpoints_preserve_inference(tmp_path):

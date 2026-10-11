@@ -46,9 +46,11 @@ the restricted reader even with released Detectron2 versions whose parent
 reader bypasses the Torch-loading hook.
 
 Torch checkpoint loading requires a stable Torch version at least 2.6.0 or
-the exact CUDA 12.1 backport `2.3.0+cu121.security1` with its restricted-loader
-APIs. RNG restoration validates generator state before changing process state
-and scopes NumPy permissions to the current load.
+the exact maintained builds `2.3.0+cu121.security1` (CUDA wheel) and
+`2.3.0+security.1` (native source), with their restricted-loader APIs.
+Unpatched builds and prereleases are rejected. RNG restoration validates
+generator state before changing process state and scopes NumPy permissions
+to the current load.
 
 The CPU security workflow uses Torch 2.6 as a test harness. Splattie retains
 its CUDA 12.1 stack. Compatibility with the compiled Torch 2.3 backport and GPU
