@@ -177,6 +177,7 @@ from .utils import (
     logging,
     strtobool,
 )
+from .utils.checkpoint_security import load_rng_checkpoint, restricted_torch_load
 from .utils.deprecation import deprecate_kwarg
 from .utils.quantization_config import QuantizationMethod
 
@@ -2749,7 +2750,7 @@ class Trainer:
                         logger.warning(
                             "Enabling FP16 and loading from smp < 1.10 checkpoint together is not suppported."
                         )
-                    state_dict = torch.load(
+                    state_dict = restricted_torch_load(
                         weights_file,
                         map_location="cpu",
                         **weights_only_kwarg,
@@ -2772,7 +2773,7 @@ class Trainer:
                 if self.args.save_safetensors and os.path.isfile(safe_weights_file):
                     state_dict = safetensors.torch.load_file(safe_weights_file, device="cpu")
                 else:
-                    state_dict = torch.load(
+                    state_dict = restricted_torch_load(
                         weights_file,
                         map_location="cpu",
                         **weights_only_kwarg,
@@ -2871,7 +2872,7 @@ class Trainer:
                     if self.args.save_safetensors and os.path.isfile(best_safe_model_path):
                         state_dict = safetensors.torch.load_file(best_safe_model_path, device="cpu")
                     else:
-                        state_dict = torch.load(
+                        state_dict = restricted_torch_load(
                             best_model_path,
                             map_location="cpu",
                             **weights_only_kwarg,
@@ -2915,7 +2916,7 @@ class Trainer:
                     if self.args.save_safetensors and os.path.isfile(best_safe_model_path):
                         state_dict = safetensors.torch.load_file(best_safe_model_path, device="cpu")
                     else:
-                        state_dict = torch.load(
+                        state_dict = restricted_torch_load(
                             best_model_path,
                             map_location="cpu",
                             **weights_only_kwarg,
@@ -3030,7 +3031,7 @@ class Trainer:
                 )
                 return
 
-        checkpoint_rng_state = torch.load(rng_file)
+        checkpoint_rng_state = load_rng_checkpoint(rng_file)
         random.setstate(checkpoint_rng_state["python"])
         np.random.set_state(checkpoint_rng_state["numpy"])
         torch.random.set_rng_state(checkpoint_rng_state["cpu"])
@@ -3268,7 +3269,7 @@ class Trainer:
             # deepspeed loads optimizer/lr_scheduler together with the model in deepspeed_init
             if not isinstance(self.lr_scheduler, DeepSpeedSchedulerWrapper):
                 with warnings.catch_warnings(record=True) as caught_warnings:
-                    self.lr_scheduler.load_state_dict(torch.load(os.path.join(checkpoint, SCHEDULER_NAME)))
+                    self.lr_scheduler.load_state_dict(restricted_torch_load(os.path.join(checkpoint, SCHEDULER_NAME)))
                 reissue_pt_warnings(caught_warnings)
             return
 
@@ -3298,7 +3299,7 @@ class Trainer:
             if is_torch_xla_available():
                 # On TPU we have to take some extra precautions to properly load the states on the right device.
                 if self.is_fsdp_xla_v1_enabled:
-                    optimizer_state = torch.load(
+                    optimizer_state = restricted_torch_load(
                         os.path.join(
                             checkpoint, f"rank{self.args.process_index}-of-{self.args.world_size}-{OPTIMIZER_NAME}"
                         ),
@@ -3307,9 +3308,13 @@ class Trainer:
                     # We only need `optimizer` when resuming from checkpoint
                     optimizer_state = optimizer_state["optimizer"]
                 else:
-                    optimizer_state = torch.load(os.path.join(checkpoint, OPTIMIZER_NAME), map_location="cpu")
+                    optimizer_state = restricted_torch_load(
+                        os.path.join(checkpoint, OPTIMIZER_NAME), map_location="cpu"
+                    )
                 with warnings.catch_warnings(record=True) as caught_warnings:
-                    lr_scheduler_state = torch.load(os.path.join(checkpoint, SCHEDULER_NAME), map_location="cpu")
+                    lr_scheduler_state = restricted_torch_load(
+                        os.path.join(checkpoint, SCHEDULER_NAME), map_location="cpu"
+                    )
                 reissue_pt_warnings(caught_warnings)
 
                 xm.send_cpu_data_to_device(optimizer_state, self.args.device)
@@ -3351,10 +3356,10 @@ class Trainer:
                         )
                     else:
                         self.optimizer.load_state_dict(
-                            torch.load(os.path.join(checkpoint, OPTIMIZER_NAME), map_location=map_location)
+                            restricted_torch_load(os.path.join(checkpoint, OPTIMIZER_NAME), map_location=map_location)
                         )
                 with warnings.catch_warnings(record=True) as caught_warnings:
-                    self.lr_scheduler.load_state_dict(torch.load(os.path.join(checkpoint, SCHEDULER_NAME)))
+                    self.lr_scheduler.load_state_dict(restricted_torch_load(os.path.join(checkpoint, SCHEDULER_NAME)))
                 reissue_pt_warnings(caught_warnings)
 
     def _load_callback_state(self):

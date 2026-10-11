@@ -53,14 +53,12 @@ def load_orig_config_file(orig_cfg_file):
 
     config = argparse.Namespace()
     with open(orig_cfg_file, "r") as yaml_file:
-        try:
-            cfg = yaml.load(yaml_file, Loader=yaml.FullLoader)
-
-            flat_cfg = flatten_yaml_as_dict(cfg)
-            for k, v in flat_cfg.items():
-                setattr(config, k, v)
-        except yaml.YAMLError as exc:
-            logger.error("Error while loading config file: {}. Error message: {}".format(orig_cfg_file, str(exc)))
+        cfg = yaml.safe_load(yaml_file)
+        if not isinstance(cfg, dict):
+            raise ValueError("Model configuration must be a YAML mapping")
+        flat_cfg = flatten_yaml_as_dict(cfg)
+        for k, v in flat_cfg.items():
+            setattr(config, k, v)
     return config
 
 
@@ -237,7 +235,9 @@ def convert_mobilevitv2_checkpoint(task_name, checkpoint_path, orig_config_path,
     config = get_mobilevitv2_config(task_name, orig_config_path)
 
     # load original state_dict
-    checkpoint = torch.load(checkpoint_path, map_location="cpu")
+    from transformers.utils.checkpoint_security import restricted_torch_load
+
+    checkpoint = restricted_torch_load(checkpoint_path, map_location="cpu")
 
     # load huggingface model
     if task_name.startswith("ade20k_") or task_name.startswith("voc_"):
@@ -318,7 +318,7 @@ if __name__ == "__main__":
         "--orig_config_path",
         required=True,
         type=str,
-        help="Path to the original config file. yaml.load will be used to load the file, please be wary of which file you're loading.",
+        help="Path to the original YAML configuration file.",
     )
     parser.add_argument(
         "--pytorch_dump_folder_path", required=True, type=str, help="Path to the output PyTorch model directory."

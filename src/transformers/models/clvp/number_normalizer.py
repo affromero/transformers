@@ -15,7 +15,7 @@
 
 """English Normalizer class for CLVP."""
 
-import re
+import regex as re
 
 
 class EnglishNormalizer:
@@ -199,12 +199,12 @@ class EnglishNormalizer:
         This method is used to normalize numbers within a text such as converting the numbers to words, removing
         commas, etc.
         """
-        text = re.sub(re.compile(r"([0-9][0-9\,]+[0-9])"), self._remove_commas, text)
-        text = re.sub(re.compile(r"£([0-9\,]*[0-9]+)"), r"\1 pounds", text)
-        text = re.sub(re.compile(r"\$([0-9\.\,]*[0-9]+)"), self._expand_dollars, text)
-        text = re.sub(re.compile(r"([0-9]+\.[0-9]+)"), self._expand_decimal_point, text)
-        text = re.sub(re.compile(r"[0-9]+(st|nd|rd|th)"), self._expand_ordinal, text)
-        text = re.sub(re.compile(r"[0-9]+"), self._expand_number, text)
+        text = re.sub(re.compile(r"([0-9][0-9\,]+[0-9])"), self._remove_commas, text, timeout=0.1)
+        text = re.sub(re.compile(r"£([0-9\,]*[0-9]+)"), r"\1 pounds", text, timeout=0.1)
+        text = re.sub(re.compile(r"\$([0-9\.\,]*[0-9]+)"), self._expand_dollars, text, timeout=0.1)
+        text = re.sub(re.compile(r"([0-9]+\.[0-9]+)"), self._expand_decimal_point, text, timeout=0.1)
+        text = re.sub(re.compile(r"[0-9]+(st|nd|rd|th)"), self._expand_ordinal, text, timeout=0.1)
+        text = re.sub(re.compile(r"[0-9]+"), self._expand_number, text, timeout=0.1)
         return text
 
     def expand_abbreviations(self, text: str) -> str:
@@ -212,14 +212,14 @@ class EnglishNormalizer:
         Expands the abbreviate words.
         """
         for regex, replacement in self._abbreviations:
-            text = re.sub(regex, replacement, text)
+            text = re.sub(regex, replacement, text, timeout=0.1)
         return text
 
     def collapse_whitespace(self, text: str) -> str:
         """
         Removes multiple whitespaces
         """
-        return re.sub(re.compile(r"\s+"), " ", text)
+        return re.sub(re.compile(r"\s+"), " ", text, timeout=0.1)
 
     def __call__(self, text):
         """

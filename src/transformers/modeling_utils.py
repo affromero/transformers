@@ -94,6 +94,7 @@ from .utils import (
     replace_return_docstrings,
     strtobool,
 )
+from .utils.checkpoint_security import restricted_torch_load
 from .utils.hub import convert_file_size_to_int, create_and_tag_model_card, get_checkpoint_shard_files
 from .utils.import_utils import (
     ENV_VARS_TRUE_VALUES,
@@ -527,7 +528,7 @@ def load_sharded_checkpoint(model, folder, strict=True, prefer_safe=True):
         raise RuntimeError(error_message)
 
     weights_only_kwarg = {"weights_only": True} if is_torch_greater_or_equal_than_1_13 else {}
-    loader = safe_load_file if load_safe else partial(torch.load, map_location="cpu", **weights_only_kwarg)
+    loader = safe_load_file if load_safe else partial(restricted_torch_load, map_location="cpu", **weights_only_kwarg)
 
     for shard_file in shard_files:
         state_dict = loader(os.path.join(folder, shard_file))
@@ -583,7 +584,7 @@ def load_state_dict(
         ):
             extra_args = {"mmap": True}
         weights_only_kwarg = {"weights_only": weights_only} if is_torch_greater_or_equal_than_1_13 else {}
-        return torch.load(
+        return restricted_torch_load(
             checkpoint_file,
             map_location=map_location,
             **weights_only_kwarg,

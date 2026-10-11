@@ -1,0 +1,49 @@
+name: Security backport CPU regressions
+on:
+  push:
+    branches: [security/4.46-backports]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  security:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884
+      - name: Create the CPU test environment
+        run: |
+          mkdir -p "$RUNNER_TEMP/transformers-check"
+          cat > "$RUNNER_TEMP/transformers-check/pyproject.toml" <<TOML
+          [project]
+          name = "transformers-security-check"
+          version = "0.0.0"
+          requires-python = ">=3.11,<3.12"
+          dependencies = ["transformers", "torch==2.6.0", "numpy==1.26.4", "huggingface-hub==0.23.2", "pytest==8.4.2", "pytest-timeout==2.4.0", "parameterized==0.9.0", "sentencepiece==0.2.2", "pillow", "nltk", "sacremoses", "pyyaml", "accelerate", "ruff==0.5.1", "tensorflow==2.16.2", "tf-keras==2.16.0"]
+          [tool.uv.sources]
+          transformers = { path = "$GITHUB_WORKSPACE", editable = true }
+          accelerate = { git = "https://github.com/affromero/accelerate", rev = "5084e3bb086b06e80896a0af1f24dbc227abc961" }
+          torch = { index = "pytorch-cpu" }
+          [project.optional-dependencies]
+          cross-framework = ["jax==0.4.28", "jaxlib==0.4.28", "flax==0.8.5", "optax==0.2.3", "chex==0.1.87", "orbax-checkpoint==0.6.4", "tensorstore==0.1.74"]
+          [[tool.uv.index]]
+          name = "pytorch-cpu"
+          url = "https://download.pytorch.org/whl/cpu"
+          explicit = true
+          TOML
+          uv sync --project "$RUNNER_TEMP/transformers-check" --python 3.11.15 --extra cross-framework
+      - name: Verify checkpoint and text security behavior
+        env:
+          CUDA_VISIBLE_DEVICES: ''
+          TF_USE_LEGACY_KERAS: '1'
+        run: |
+          uv run --project "$RUNNER_TEMP/transformers-check" --no-sync python -m pytest tests/utils/test_checkpoint_security.py tests/utils/test_text_security_backports.py tests/utils/test_dynamic_module_utils.py -q
+      - name: Check changed Python files
+        run: |
+          git diff --name-only 052e652d6d53c2b26ffde87e039b723949a53493 HEAD -- '*.py' > "$RUNNER_TEMP/changed-python"
+          printf '%s\n' src/transformers/utils/checkpoint_security.py tests/utils/test_checkpoint_security.py tests/utils/test_text_security_backports.py >> "$RUNNER_TEMP/changed-python"
+          xargs uv run --project "$RUNNER_TEMP/transformers-check" --no-sync ruff check < "$RUNNER_TEMP/changed-python"

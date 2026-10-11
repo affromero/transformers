@@ -15,7 +15,6 @@
 """Convert Reformer checkpoint."""
 
 import argparse
-import pickle
 
 import numpy as np
 import torch
@@ -23,6 +22,7 @@ from torch import nn
 
 from transformers import ReformerConfig, ReformerModelWithLMHead
 from transformers.utils import logging
+from transformers.utils.checkpoint_security import load_numpy_checkpoint
 
 
 logging.set_verbosity_info()
@@ -189,7 +189,7 @@ def convert_trax_checkpoint_to_pytorch(trax_model_pkl_path, config_file, pytorch
     model = ReformerModelWithLMHead(config)
 
     with open(trax_model_pkl_path, "rb") as f:
-        model_weights = pickle.load(f)["weights"]
+        model_weights = load_numpy_checkpoint(f)["weights"]
 
     set_model_weights_in_torch(model_weights, model, config.hidden_size)
 

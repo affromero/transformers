@@ -18,6 +18,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from pprint import pformat
 from typing import Any, Dict, Iterator, List, Set, Tuple
+from urllib.parse import parse_qs
 
 import requests
 import torch
@@ -38,6 +39,7 @@ from transformers.models.maskformer.modeling_maskformer import (
     MaskFormerModelOutput,
 )
 from transformers.utils import logging
+from transformers.utils.checkpoint_security import load_numpy_checkpoint, restricted_torch_load
 
 
 StateDict = Dict[str, Tensor]
@@ -46,6 +48,39 @@ logging.set_verbosity_info()
 logger = logging.get_logger()
 
 torch.manual_seed(0)
+
+
+class RestrictedDetectionCheckpointer(DetectionCheckpointer):
+    def _load_file(self, filename):
+        if filename.endswith(".pkl"):
+            with self.path_manager.open(filename, "rb") as handle:
+                data = load_numpy_checkpoint(handle)
+            if "model" in data and "__author__" in data:
+                return data
+            data = data.get("blobs", data)
+            model = {key: value for key, value in data.items() if not key.endswith("_momentum")}
+            return {"model": model, "__author__": "Caffe2", "matching_heuristics": True}
+        if filename.endswith(".pyth"):
+            data = self._torch_load(filename)
+            model = {
+                key: value for key, value in data["model_state"].items() if not key.endswith("num_batches_tracked")
+            }
+            return {"model": model, "__author__": "pycls", "matching_heuristics": True}
+        loaded = self._torch_load(filename)
+        if "model" not in loaded:
+            loaded = {"model": loaded}
+        parsed_url = getattr(self, "_parsed_url_during_load", None)
+        if parsed_url is not None:
+            queries = parse_qs(parsed_url.query)
+            if queries.pop("matching_heuristics", ["False"]) == ["True"]:
+                loaded["matching_heuristics"] = True
+            if queries:
+                raise ValueError(f"Unsupported checkpoint URL queries: {queries}")
+        return loaded
+
+    def _torch_load(self, filename):
+        with self.path_manager.open(filename, "rb") as handle:
+            return restricted_torch_load(handle, map_location="cpu")
 
 
 class TrackedStateDict:
@@ -694,7 +729,7 @@ if __name__ == "__main__":
 
         original_model = OriginalMaskFormer(**mask_former_kwargs).eval()
 
-        DetectionCheckpointer(original_model).load(str(checkpoint_file))
+        RestrictedDetectionCheckpointer(original_model).load(str(checkpoint_file))
 
         config: MaskFormerConfig = OriginalMaskFormerConfigToOursConverter()(original_config)
 

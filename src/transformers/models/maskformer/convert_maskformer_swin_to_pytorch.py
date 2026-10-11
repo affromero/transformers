@@ -17,7 +17,6 @@ https://github.com/facebookresearch/MaskFormer"""
 
 import argparse
 import json
-import pickle
 from pathlib import Path
 
 import requests
@@ -27,6 +26,7 @@ from PIL import Image
 
 from transformers import MaskFormerConfig, MaskFormerForInstanceSegmentation, MaskFormerImageProcessor, SwinConfig
 from transformers.utils import logging
+from transformers.utils.checkpoint_security import load_numpy_checkpoint
 
 
 logging.set_verbosity_info()
@@ -237,7 +237,7 @@ def convert_maskformer_checkpoint(
 
     # load original state_dict
     with open(checkpoint_path, "rb") as f:
-        data = pickle.load(f)
+        data = load_numpy_checkpoint(f)
     state_dict = data["model"]
 
     # for name, param in state_dict.items():

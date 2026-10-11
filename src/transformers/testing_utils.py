@@ -2376,8 +2376,10 @@ def preprocess_string(string, skip_cuda_tests):
     cuda stuff is detective (with a heuristic), this method will return an empty string so no doctest will be run for
     `string`.
     """
-    codeblock_pattern = r"(```(?:python|py)\s*\n\s*>>> )((?:.*?\n)*?.*?```)"
-    codeblocks = re.split(re.compile(codeblock_pattern, flags=re.MULTILINE | re.DOTALL), string)
+    import regex
+
+    codeblock_pattern = r"(```(?:python|py)\s*\n\s*>>> )(.*?```)"
+    codeblocks = regex.split(codeblock_pattern, string, flags=regex.DOTALL, timeout=0.1)
     is_cuda_found = False
     for i, codeblock in enumerate(codeblocks):
         if "load_dataset(" in codeblock and "# doctest: +IGNORE_RESULT" not in codeblock:

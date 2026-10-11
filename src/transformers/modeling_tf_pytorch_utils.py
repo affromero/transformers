@@ -32,6 +32,7 @@ from .utils import (
     tensor_size,
 )
 from .utils import transpose as transpose_func
+from .utils.checkpoint_security import restricted_torch_load
 
 
 if is_safetensors_available():
@@ -78,6 +79,9 @@ def convert_tf_weight_name_to_pt_weight_name(
         tf_name = tf_name[len(name_scope) :]
         tf_name = tf_name.lstrip("/")
     tf_name = tf_name.replace(":0", "")  # device ids
+    if (len(tf_name) > 2048 and "___" in tf_name) or tf_name.count("___") > 10:
+        # ReDOS check
+        raise ValueError("TF variable name is too long or contains too many ___ separators: " + tf_name)
     tf_name = re.sub(
         r"/[^/]*___([^/]*)/", r"/\1/", tf_name
     )  # '$1___$2' is replaced by $2 (can be used to duplicate or remove layers in TF2.0 vs PyTorch)
@@ -181,7 +185,6 @@ def load_pytorch_checkpoint_in_tf2_model(
         import torch  # noqa: F401
         from safetensors.torch import load_file as safe_load_file  # noqa: F401
 
-        from .pytorch_utils import is_torch_greater_or_equal_than_1_13  # noqa: F401
     except ImportError:
         logger.error(
             "Loading a PyTorch model in TensorFlow, requires both PyTorch and TensorFlow to be installed. Please see "
@@ -201,8 +204,7 @@ def load_pytorch_checkpoint_in_tf2_model(
         if pt_path.endswith(".safetensors"):
             state_dict = safe_load_file(pt_path)
         else:
-            weights_only_kwarg = {"weights_only": True} if is_torch_greater_or_equal_than_1_13 else {}
-            state_dict = torch.load(pt_path, map_location="cpu", **weights_only_kwarg)
+            state_dict = restricted_torch_load(pt_path, map_location="cpu")
 
         pt_state_dict.update(state_dict)
 

@@ -17,10 +17,10 @@
 import collections
 import json
 import os
-import re
 from typing import List, Optional, Tuple, Union
 
 import numpy as np
+import regex as re
 
 from ....tokenization_utils import PreTrainedTokenizer
 from ....tokenization_utils_base import (
@@ -418,12 +418,12 @@ class SubWordJapaneseTokenizer:
         return len(self.ids_to_tokens)
 
     def clean_text(self, content):
-        content = self.content_repatter1.sub("<URL>", content)
-        content = self.content_repatter2.sub("<EMAIL>", content)
-        content = self.content_repatter3.sub("<TEL>", content)
-        content = self.content_repatter4.sub("<DATE>", content)
-        content = self.content_repatter5.sub("<DATE>", content)
-        content = self.content_repatter6.sub("<PRICE>", content)
+        content = self.content_repatter1.sub("<URL>", content, timeout=0.1)
+        content = self.content_repatter2.sub("<EMAIL>", content, timeout=0.1)
+        content = self.content_repatter3.sub("<TEL>", content, timeout=0.1)
+        content = self.content_repatter4.sub("<DATE>", content, timeout=0.1)
+        content = self.content_repatter5.sub("<DATE>", content, timeout=0.1)
+        content = self.content_repatter6.sub("<PRICE>", content, timeout=0.1)
         content = content.translate(self.content_trans1)
         while "<BLOCK><BLOCK>" in content:
             content = content.replace("<BLOCK><BLOCK>", "<BLOCK>")

@@ -14,6 +14,7 @@
 # limitations under the License.
 """Utilities to dynamically load objects from the Hub."""
 
+import ast
 import filecmp
 import hashlib
 import importlib
@@ -151,20 +152,27 @@ def get_imports(filename: Union[str, os.PathLike]) -> List[str]:
     with open(filename, "r", encoding="utf-8") as f:
         content = f.read()
 
-    # filter out try/except block so in custom code we can have try/except imports
-    content = re.sub(r"\s*try\s*:\s*.*?\s*except\s*.*?:", "", content, flags=re.MULTILINE | re.DOTALL)
-    # filter out imports under is_flash_attn_2_available block for avoid import issues in cpu only environment
-    content = re.sub(
-        r"if is_flash_attn[a-zA-Z0-9_]+available\(\):\s*(from flash_attn\s*.*\s*)+", "", content, flags=re.MULTILINE
-    )
+    imported_modules = set()
 
-    # Imports of the form `import xxx`
-    imports = re.findall(r"^\s*import\s+(\S+)\s*$", content, flags=re.MULTILINE)
-    # Imports of the form `from xxx import yyy`
-    imports += re.findall(r"^\s*from\s+(\S+)\s+import", content, flags=re.MULTILINE)
-    # Only keep the top-level module
-    imports = [imp.split(".")[0] for imp in imports if not imp.startswith(".")]
-    return list(set(imports))
+    def visit(node):
+        if isinstance(node, ast.Try):
+            return
+        if isinstance(node, ast.If) and any(
+            isinstance(condition, ast.Call)
+            and isinstance(condition.func, ast.Name)
+            and condition.func.id.startswith("is_flash_attn")
+            for condition in ast.walk(node.test)
+        ):
+            return
+        if isinstance(node, ast.Import):
+            imported_modules.update(alias.name.split(".")[0] for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
+            imported_modules.add(node.module.split(".")[0])
+        for child in ast.iter_child_nodes(node):
+            visit(child)
+
+    visit(ast.parse(content))
+    return sorted(imported_modules)
 
 
 def check_imports(filename: Union[str, os.PathLike]) -> List[str]:
