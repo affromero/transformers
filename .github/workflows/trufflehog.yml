@@ -1,5 +1,6 @@
 on:
   push:
+    branches: [security/4.46-backports]
 
 name: Secret Leaks
 
@@ -11,8 +12,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           fetch-depth: 0
       - name: Secret Scanning
-        uses: trufflesecurity/trufflehog@main
+        uses: trufflesecurity/trufflehog@3bcf19f51e91a9655d84ddb623728c7620be482a
+        with:
+          # Scan every security backport against its upstream release baseline.
+          base: 052e652d6d53c2b26ffde87e039b723949a53493
+          head: ${{ github.sha }}
